@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: quiropractico-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      # Tell Prisma to put the database inside the persistent volume folder
+      - DATABASE_URL=file:/app/data/dev.db
+      # Google OAuth Credentials (to be filled by VPS host or in .env file)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+      - NEXT_TELEMETRY_DISABLED=1
+    volumes:
+      # Persistent volume for the SQLite database file
+      - db-data:/app/data
+
+volumes:
+  db-data:

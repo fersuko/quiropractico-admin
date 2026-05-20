@@ -1,26 +1,106 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Premium Dark Mode Colors */
+  --bg-primary: #0a0e17;
+  --bg-secondary: #121826;
+  --bg-tertiary: #1b2336;
+  --bg-card: rgba(22, 30, 49, 0.6);
+  --border-color: rgba(255, 255, 255, 0.08);
+  
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  
+  --accent-color: #0d9488; /* Teal */
+  --accent-hover: #0f766e;
+  
+  /* State Colors */
+  --color-agendada: #f59e0b; /* Yellow */
+  --color-confirmada: #10b981; /* Green */
+  --color-cancelada: #ef4444; /* Red */
+  
+  --color-pendiente: #f59e0b;
+  --color-parcial: #6366f1; /* Indigo */
+  --color-pagado: #10b981;
+
+  /* Font styling */
+  --font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  
+  /* UI variables */
+  --sidebar-width: 260px;
+  --header-height: 70px;
+  --glass-blur: 16px;
+  --border-radius: 12px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Utilities */
+.glass {
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+}
+
+.glow-teal {
+  box-shadow: 0 0 20px rgba(13, 148, 136, 0.15);
+}
+
+/* Modern Input Fields */
+input, select, textarea {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  outline: none;
+  font-family: inherit;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2);
+}
+
+/* Interactive elements */
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+

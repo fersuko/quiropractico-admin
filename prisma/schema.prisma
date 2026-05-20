@@ -1,0 +1,79 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Patient {
+  id           String        @id @default(uuid())
+  firstName    String
+  lastName     String
+  phone1       String
+  phone2       String?
+  genderCode   String?       // A02, A04, etc.
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+}
+
+model Therapy {
+  id           String        @id
+  name         String
+  description  String?
+  price        Float
+  color        String        // Color hex code or Tailwind class name
+  appointments Appointment[]
+}
+
+model Appointment {
+  id            String    @id @default(uuid())
+  patientId     String
+  patient       Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  therapyId     String
+  therapy       Therapy   @relation(fields: [therapyId], references: [id])
+  date          String    // YYYY-MM-DD
+  timeSlot      String    // e.g. "07:00", "07:15"
+  bedNumber     Int       // 1, 2, 3, or 4
+  status        String    // "Agendada", "Confirmada", "Cancelada"
+  paymentStatus String    // "Pendiente", "Parcial", "Pagado"
+  tipo          String    @default("COT") // e.g. COT
+  rx            Boolean   @default(false)
+  googleEventId String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  payments      Payment[]
+
+  @@unique([date, timeSlot, bedNumber]) // Avoid double booking the same bed in the same slot
+}
+
+model Payment {
+  id            String      @id @default(uuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  amount        Float
+  method        String      // "Efectivo", "Tarjeta", "Transferencia"
+  createdAt     DateTime    @default(now())
+  notes         String?
+}
+
+model GoogleAuth {
+  id           String   @id @default("default")
+  accessToken  String?
+  refreshToken String?
+  expiryDate   String?  // Saved as string due to SQLite BigInt limit
+  updatedAt    DateTime @updatedAt
+}
+
+model AppConfig {
+  id               String @id @default("default")
+  whatsappTemplate String @default("Hola {paciente}, te recordamos tu cita de {terapia} el {fecha} a las {hora}. Confírmanos por este medio.")
+}
+
