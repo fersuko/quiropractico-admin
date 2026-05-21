@@ -35,5 +35,5 @@ RUN mkdir -p /app/data
 
 EXPOSE 3000
 
-# Run migrations and start the standalone Next.js server
-CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
+# Run migrations, seed demo data, and start the standalone Next.js server
+CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma db seed && node server.js"]

@@ -98,7 +98,87 @@ async function main() {
   }
   console.log("Seeded default patients.");
 
-  // 3. Seed AppConfig
+  // 3. Seed Appointments and Payments for Today (Demo Mode)
+  const dbPatients = await prisma.patient.findMany();
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const apptData = [
+    {
+      patientId: dbPatients[0].id,
+      therapyId: "TD",
+      date: todayStr,
+      timeSlot: "09:00",
+      bedNumber: 1,
+      notes: "Dolor en espalda baja",
+      status: "Confirmada",
+      paymentStatus: "Pagado",
+      pricePaid: 800.0,
+      paymentMethod: "Efectivo",
+    },
+    {
+      patientId: dbPatients[1].id,
+      therapyId: "TD_RESET",
+      date: todayStr,
+      timeSlot: "09:15",
+      bedNumber: 2,
+      notes: "Seguimiento de ajuste de cuello",
+      status: "Confirmada",
+      paymentStatus: "Pendiente",
+      pricePaid: 0.0,
+      paymentMethod: "",
+    },
+    {
+      patientId: dbPatients[2].id,
+      therapyId: "CONS_1ER_RX",
+      date: todayStr,
+      timeSlot: "10:30",
+      bedNumber: 3,
+      notes: "Trae radiografías nuevas",
+      status: "Confirmada",
+      paymentStatus: "Parcial",
+      pricePaid: 500.0,
+      paymentMethod: "Tarjeta",
+    },
+  ];
+
+  for (const appt of apptData) {
+    const existingAppt = await prisma.appointment.findFirst({
+      where: {
+        date: appt.date,
+        timeSlot: appt.timeSlot,
+        bedNumber: appt.bedNumber,
+      },
+    });
+
+    if (!existingAppt) {
+      const createdAppt = await prisma.appointment.create({
+        data: {
+          patientId: appt.patientId,
+          therapyId: appt.therapyId,
+          date: appt.date,
+          timeSlot: appt.timeSlot,
+          bedNumber: appt.bedNumber,
+          notes: appt.notes,
+          status: appt.status,
+          paymentStatus: appt.paymentStatus,
+        },
+      });
+
+      // Create payment
+      if (appt.pricePaid > 0) {
+        await prisma.payment.create({
+          data: {
+            appointmentId: createdAppt.id,
+            amount: appt.pricePaid,
+            method: appt.paymentMethod,
+          },
+        });
+      }
+    }
+  }
+  console.log("Seeded demo appointments and payments for today.");
+
+  // 4. Seed AppConfig
   await prisma.appConfig.upsert({
     where: { id: "default" },
     update: {},
