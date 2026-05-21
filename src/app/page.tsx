@@ -25,6 +25,35 @@ import {
   UserCheck
 } from "lucide-react";
 
+// Intercept and prefix fetch calls automatically when deployed on a subpath
+if (typeof window !== "undefined") {
+  const originalFetch = window.fetch;
+  window.fetch = function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    let url = "";
+    if (typeof input === "string") {
+      url = input;
+    } else if (input instanceof URL) {
+      url = input.pathname + input.search;
+    } else if (input && typeof input === "object" && "url" in input) {
+      url = (input as any).url;
+    }
+
+    if (url.startsWith("/api/")) {
+      if (window.location.pathname.startsWith("/quiropractico")) {
+        const prefixedUrl = "/quiropractico" + url;
+        if (typeof input === "string") {
+          return originalFetch(prefixedUrl, init);
+        } else if (input instanceof URL) {
+          return originalFetch(new URL(prefixedUrl, window.location.origin), init);
+        } else {
+          return originalFetch(new Request(prefixedUrl, input as any), init);
+        }
+      }
+    }
+    return originalFetch(input, init);
+  };
+}
+
 // Generate Time Slots from 06:30 to 18:45 (last session ends at 19:00)
 const generateTimeSlots = () => {
   const slots = [];
