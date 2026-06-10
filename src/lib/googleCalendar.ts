@@ -78,8 +78,8 @@ export async function syncAppointmentToGoogleCalendar(appointmentId: string) {
     const endMinStr = String(endM).padStart(2, "0");
     const endISO = `${appointment.date}T${endHourStr}:${endMinStr}:00-06:00`;
 
-    const summary = `${appointment.patient.firstName} ${appointment.patient.lastName} - ${appointment.therapy.name} [Cama ${appointment.bedNumber}]`;
-    const description = `Paciente: ${appointment.patient.firstName} ${appointment.patient.lastName}\nTeléfono: ${appointment.patient.phone1}\nCama: ${appointment.bedNumber}\nTerapia: ${appointment.therapy.name}\nEstatus Cita: ${appointment.status}\nEstatus Pago: ${appointment.paymentStatus}\nNotas: ${appointment.notes || "Ninguna"}`;
+    const summary = `${appointment.patient.firstName} ${appointment.patient.lastName} - ${appointment.therapy.name}${appointment.therapySubcategory ? ` (${appointment.therapySubcategory})` : ""} [Consultorio ${appointment.consultorio}]`;
+    const description = `Paciente: ${appointment.patient.firstName} ${appointment.patient.lastName}\nTeléfono: ${appointment.patient.phone1}\nConsultorio: ${appointment.consultorio}\nTerapia: ${appointment.therapy.name}${appointment.therapySubcategory ? ` (${appointment.therapySubcategory})` : ""}\nEstatus Cita: ${appointment.status}\nEstatus Pago: ${appointment.paymentStatus}\nNotas: ${appointment.notes || "Ninguna"}`;
 
     const eventBody = {
       summary,
@@ -182,19 +182,20 @@ export async function deleteAppointmentFromGoogleCalendar(appointmentId: string)
   }
 }
 
-// Maps therapy IDs to Google Calendar event colors (1 to 11)
 function getColorIdByTherapy(therapyId: string): string {
   switch (therapyId) {
-    case "CONS_1ER_RX":
+    case "CONSULTA":
       return "7"; // Peacock (Teal-ish)
-    case "CONS_1ER_COMP":
+    case "1ER_VEZ_CON_RX":
       return "9"; // Blueberry (Blue)
-    case "TD":
+    case "1ER_VEZ_SIN_RX":
       return "10"; // Basil (Green)
-    case "TD_RESET":
-      return "4"; // Flamingo (Lavender/Purple)
-    case "NAET":
-      return "11"; // Tomato (Red/Pink-ish)
+    case "COMPARATIVO":
+      return "8"; // Tangerine (Orange)
+    case "TD":
+      return "11"; // Tomato (Red)
+    case "RESET":
+      return "4"; // Flamingo (Lavender)
     default:
       return "1"; // Lavender (Default Blue)
   }

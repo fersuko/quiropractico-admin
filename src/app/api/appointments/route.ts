@@ -5,6 +5,12 @@ import {
   deleteAppointmentFromGoogleCalendar,
 } from "@/lib/googleCalendar";
 
+// Helper to check scheduling permission (Admin or Reception)
+function checkSchedulingPermission(request: Request): boolean {
+  const role = request.headers.get("x-user-role");
+  return role === "Admin" || role === "Recepción";
+}
+
 // GET /api/appointments?date=YYYY-MM-DD
 export async function GET(request: Request) {
   try {
@@ -20,6 +26,12 @@ export async function GET(request: Request) {
       include: {
         patient: true,
         therapy: true,
+        user: {
+          select: {
+            name: true,
+            role: true,
+          },
+        },
       },
     });
 
@@ -33,38 +45,45 @@ export async function GET(request: Request) {
 // POST /api/appointments
 export async function POST(request: Request) {
   try {
+    // Check permission
+    if (!checkSchedulingPermission(request)) {
+      return NextResponse.json({ error: "No tienes permiso para agendar citas." }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       patientId,
       therapyId,
+      therapySubcategory,
       date,
       timeSlot,
-      bedNumber,
+      consultorio,
       status,
       paymentStatus,
       tipo,
       rx,
       notes,
+      userId, // The user scheduling/attending the appointment
     } = body;
 
-    if (!patientId || !therapyId || !date || !timeSlot || bedNumber === undefined) {
+    if (!patientId || !therapyId || !date || !timeSlot || !consultorio) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // 1. Check double booking
+    // 1. Check double booking of the office (consultorio) in the slot
     const existing = await db.appointment.findUnique({
       where: {
-        date_timeSlot_bedNumber: {
+        date_timeSlot_consultorio: {
           date,
           timeSlot,
-          bedNumber: parseInt(bedNumber),
+          consultorio,
         },
       },
     });
 
     if (existing) {
       return NextResponse.json(
-        { error: `La cama ${bedNumber} ya está ocupada en el horario de las ${timeSlot}.` },
+        { error: `El Consultorio ${consultorio} ya está ocupado en el horario de las ${timeSlot}.` },
         { status: 409 }
       );
     }
@@ -74,14 +93,16 @@ export async function POST(request: Request) {
       data: {
         patientId,
         therapyId,
+        therapySubcategory: therapyId === "RESET" ? (therapySubcategory || "Tratamiento E") : null,
         date,
         timeSlot,
-        bedNumber: parseInt(bedNumber),
+        consultorio,
         status: status || "Agendada",
         paymentStatus: paymentStatus || "Pendiente",
         tipo: tipo || "COT",
         rx: !!rx,
         notes: notes || null,
+        userId: userId || null,
       },
     });
 
@@ -105,55 +126,91 @@ export async function PUT(request: Request) {
       id,
       patientId,
       therapyId,
+      therapySubcategory,
       date,
       timeSlot,
-      bedNumber,
+      consultorio,
       status,
       paymentStatus,
       tipo,
       rx,
       notes,
+      userId,
     } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Missing appointment ID" }, { status: 400 });
     }
 
-    // If changing slot/bed, check double booking
-    if (date && timeSlot && bedNumber !== undefined) {
+    // Fetch existing appointment to check creator and roles
+    const existingAppointment = await db.appointment.findUnique({
+      where: { id },
+    });
+
+    if (!existingAppointment) {
+      return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+    }
+
+    const requesterRole = request.headers.get("x-user-role");
+
+    // Doctors can only update notes, rx status, or appointment status, they cannot reschedule (change date, slot, or office)
+    if (requesterRole === "Doctor") {
+      const isRescheduling = 
+        (date && date !== existingAppointment.date) || 
+        (timeSlot && timeSlot !== existingAppointment.timeSlot) || 
+        (consultorio && consultorio !== existingAppointment.consultorio) ||
+        (patientId && patientId !== existingAppointment.patientId);
+
+      if (isRescheduling) {
+        return NextResponse.json({ error: "Los doctores no pueden reagendar citas. Solicítelo a Recepción." }, { status: 403 });
+      }
+    } else if (requesterRole !== "Admin" && requesterRole !== "Recepción") {
+      return NextResponse.json({ error: "Acceso no autorizado" }, { status: 403 });
+    }
+
+    // If rescheduling, check double booking
+    if (date && timeSlot && consultorio) {
       const existing = await db.appointment.findUnique({
         where: {
-          date_timeSlot_bedNumber: {
+          date_timeSlot_consultorio: {
             date,
             timeSlot,
-            bedNumber: parseInt(bedNumber),
+            consultorio,
           },
         },
       });
 
       if (existing && existing.id !== id) {
         return NextResponse.json(
-          { error: `La cama ${bedNumber} ya está ocupada en el horario de las ${timeSlot}.` },
+          { error: `El Consultorio ${consultorio} ya está ocupado en el horario de las ${timeSlot}.` },
           { status: 409 }
         );
       }
     }
 
+    // Prepare update data
+    const updateData: any = {
+      patientId,
+      therapyId,
+      date,
+      timeSlot,
+      consultorio,
+      status,
+      paymentStatus,
+      tipo,
+      rx: rx !== undefined ? !!rx : undefined,
+      notes,
+      userId,
+    };
+
+    if (therapyId) {
+      updateData.therapySubcategory = therapyId === "RESET" ? (therapySubcategory || "Tratamiento E") : null;
+    }
+
     // Update appointment
     const updated = await db.appointment.update({
       where: { id },
-      data: {
-        patientId,
-        therapyId,
-        date,
-        timeSlot,
-        bedNumber: bedNumber !== undefined ? parseInt(bedNumber) : undefined,
-        status,
-        paymentStatus,
-        tipo,
-        rx: rx !== undefined ? !!rx : undefined,
-        notes,
-      },
+      data: updateData,
     });
 
     // Trigger Google Calendar sync (non-blocking)
@@ -171,6 +228,11 @@ export async function PUT(request: Request) {
 // DELETE /api/appointments?id=XXXX
 export async function DELETE(request: Request) {
   try {
+    // Check permission
+    if (!checkSchedulingPermission(request)) {
+      return NextResponse.json({ error: "No tienes permiso para eliminar citas." }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -178,7 +240,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Missing appointment ID" }, { status: 400 });
     }
 
-    // 1. Delete from Google Calendar first (requires appointment data from db)
+    // 1. Delete from Google Calendar first
     await deleteAppointmentFromGoogleCalendar(id);
 
     // 2. Delete from database

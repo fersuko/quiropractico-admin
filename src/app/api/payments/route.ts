@@ -95,6 +95,7 @@ export async function GET(request: Request) {
           paid,
           pending: Math.max(0, price - paid),
           paymentStatus: app.paymentStatus,
+          consultorio: app.consultorio,
         };
       });
 

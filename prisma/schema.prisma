@@ -11,16 +11,35 @@ datasource db {
   provider = "sqlite"
 }
 
+model User {
+  id              String           @id @default(uuid())
+  username        String           @unique
+  password        String           // Hash SHA-256
+  name            String
+  role            String           // "Admin", "Recepción", "Doctor"
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  appointments    Appointment[]
+  clinicalRecords ClinicalRecord[]
+}
+
 model Patient {
-  id           String        @id @default(uuid())
-  firstName    String
-  lastName     String
-  phone1       String
-  phone2       String?
-  genderCode   String?       // A02, A04, etc.
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  appointments Appointment[]
+  id                 String           @id @default(uuid())
+  firstName          String
+  lastName           String
+  phone1             String
+  phone2             String
+  gender             String           // "Masculino", "Femenino", "Otro"
+  status             String           @default("Activo") // "Activo", "Inactivo", "En tratamiento"
+  rx                 Boolean          @default(false)
+  therapyId          String?
+  therapy            Therapy?         @relation(fields: [therapyId], references: [id])
+  therapySubcategory String?          // For Reset: Tratamiento E, Tratamiento B, Tratamiento F
+  genderCode         String?          // Keep for backwards compatibility
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  appointments       Appointment[]
+  clinicalRecords    ClinicalRecord[]
 }
 
 model Therapy {
@@ -30,28 +49,32 @@ model Therapy {
   price        Float
   color        String        // Color hex code or Tailwind class name
   appointments Appointment[]
+  patients     Patient[]
 }
 
 model Appointment {
-  id            String    @id @default(uuid())
-  patientId     String
-  patient       Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  therapyId     String
-  therapy       Therapy   @relation(fields: [therapyId], references: [id])
-  date          String    // YYYY-MM-DD
-  timeSlot      String    // e.g. "07:00", "07:15"
-  bedNumber     Int       // 1, 2, 3, or 4
-  status        String    // "Agendada", "Confirmada", "Cancelada"
-  paymentStatus String    // "Pendiente", "Parcial", "Pagado"
-  tipo          String    @default("COT") // e.g. COT
-  rx            Boolean   @default(false)
-  googleEventId String?
-  notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  payments      Payment[]
+  id                 String    @id @default(uuid())
+  patientId          String
+  patient            Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  therapyId          String
+  therapy            Therapy   @relation(fields: [therapyId], references: [id])
+  therapySubcategory String?   // "Tratamiento E", "Tratamiento B", "Tratamiento F" (for Reset)
+  date               String    // YYYY-MM-DD
+  timeSlot           String    // e.g. "07:00", "07:15"
+  consultorio        String    // "A", "B", "C", "D"
+  status             String    // "Agendada", "Confirmada", "Cancelada"
+  paymentStatus      String    // "Pendiente", "Parcial", "Pagado"
+  tipo               String    @default("COT") // e.g. COT
+  rx                 Boolean   @default(false)
+  googleEventId      String?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  payments           Payment[]
+  userId             String?   // Attending user/doctor
+  user               User?     @relation(fields: [userId], references: [id])
 
-  @@unique([date, timeSlot, bedNumber]) // Avoid double booking the same bed in the same slot
+  @@unique([date, timeSlot, consultorio])
 }
 
 model Payment {
@@ -62,6 +85,30 @@ model Payment {
   method        String      // "Efectivo", "Tarjeta", "Transferencia"
   createdAt     DateTime    @default(now())
   notes         String?
+}
+
+model ClinicalRecord {
+  id        String   @id @default(uuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  userId    String   // Attending doctor/user
+  user      User     @relation(fields: [userId], references: [id])
+  date      String   // YYYY-MM-DD
+  notes     String   // clinical notes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ScheduleBlock {
+  id          String   @id @default(uuid())
+  date        String   // YYYY-MM-DD
+  timeSlot    String?  // Start time slot, e.g., "08:00" or null if whole day/half day
+  type        String   // "15_MIN", "HOUR", "HALF_DAY", "FULL_DAY"
+  halfDayType String?  // "Mañana" or "Tarde"
+  consultorio String   // "A", "B", "C", "D" or "TODOS"
+  reason      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model GoogleAuth {
