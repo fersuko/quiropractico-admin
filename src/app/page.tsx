@@ -1579,15 +1579,18 @@ export default function Home() {
                         <div className="glass p-6 flex flex-col gap-4">
                           <div className="flex items-center justify-between border-b border-white/5 pb-3">
                             <h3 className="font-bold text-sm text-slate-300">Cortes de Caja de Hoy</h3>
-                            {financeSummary.dailyPayments && financeSummary.dailyPayments.length > 0 && (
-                              <button
-                                onClick={exportCajaCSV}
-                                className="px-2.5 py-1.5 bg-teal-600/20 hover:bg-teal-600/30 text-teal-400 font-semibold text-[10px] rounded-lg border border-teal-500/20 transition flex items-center gap-1.5"
-                              >
-                                <Download size={12} />
-                                <span>Exportar CSV</span>
-                              </button>
-                            )}
+                            <button
+                              onClick={exportCajaCSV}
+                              disabled={!financeSummary.dailyPayments || financeSummary.dailyPayments.length === 0}
+                              className={`px-2.5 py-1.5 font-semibold text-[10px] rounded-lg border transition flex items-center gap-1.5 ${
+                                !financeSummary.dailyPayments || financeSummary.dailyPayments.length === 0
+                                  ? "bg-slate-800 text-slate-500 border-white/5 cursor-not-allowed"
+                                  : "bg-[#0d9488]/20 hover:bg-[#0d9488]/30 text-teal-400 border-teal-500/20 cursor-pointer"
+                              }`}
+                            >
+                              <Download size={12} />
+                              <span>Exportar CSV</span>
+                            </button>
                           </div>
                           <div className="overflow-y-auto max-h-[40vh] divide-y divide-white/5">
                             {financeSummary.dailyPayments && financeSummary.dailyPayments.length > 0 ? (
