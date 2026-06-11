@@ -119,6 +119,7 @@ export default function Home() {
   const [therapies, setTherapies] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
   const [appConfig, setAppConfig] = useState<any>({});
+  const [whatsappCountryCode, setWhatsappCountryCode] = useState("52");
   const [googleAuth, setGoogleAuth] = useState({ isAuthorized: false, updatedAt: null });
   
   // Finance Statistics
@@ -212,6 +213,12 @@ export default function Home() {
       } catch (e) {
         localStorage.removeItem("quiropractico_user");
       }
+    }
+
+    // Load whatsapp country code from localStorage
+    const savedCC = localStorage.getItem("quiropractico_whatsapp_cc");
+    if (savedCC) {
+      setWhatsappCountryCode(savedCC);
     }
   }, []);
 
@@ -434,7 +441,6 @@ export default function Home() {
     }
   };
 
-  // WhatsApp Message Generator
   const sendWhatsApp = (appointment: any) => {
     const pName = `${appointment.patient.firstName} ${appointment.patient.lastName}`;
     const dateFormatted = appointment.date.split("-").reverse().join("/");
@@ -447,7 +453,14 @@ export default function Home() {
       .replace(/{hora}/g, appointment.timeSlot);
 
     const encodedText = encodeURIComponent(text);
-    const phone = appointment.patient.phone1.replace(/\s+/g, "");
+    
+    // Clean all non-digit characters from the phone number
+    let phone = appointment.patient.phone1.replace(/\D/g, "");
+    // If it's a 10-digit local Mexican number, prepend country code
+    if (phone.length === 10) {
+      phone = whatsappCountryCode + phone;
+    }
+    
     window.open(`https://wa.me/${phone}?text=${encodedText}`, "_blank");
   };
 
@@ -1760,6 +1773,24 @@ export default function Home() {
                                 <strong className="text-slate-400">{` {terapia}`}</strong>: Nombre de terapia,
                                 <strong className="text-slate-400">{` {fecha}`}</strong>: DD/MM/AAAA,
                                 <strong className="text-slate-400">{` {hora}`}</strong>: HH:MM.
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col gap-1.5 border-t border-white/5 pt-3">
+                              <label className="text-xs text-slate-400 font-medium">Lada / Prefijo de País (WhatsApp)</label>
+                              <input
+                                type="text"
+                                className="w-full max-w-[120px] bg-[#1b2336] border-white/5 text-xs py-1.5 px-3 text-slate-300"
+                                value={whatsappCountryCode}
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, "");
+                                  setWhatsappCountryCode(val);
+                                  localStorage.setItem("quiropractico_whatsapp_cc", val);
+                                }}
+                                placeholder="52"
+                              />
+                              <p className="text-[10px] text-slate-500">
+                                Se antepone automáticamente a los números locales de 10 dígitos (ej: 52 para México).
                               </p>
                             </div>
 
