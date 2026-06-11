@@ -108,3 +108,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// Helper to check scheduling permission (Admin or Reception)
+function checkSchedulingPermission(request: Request): boolean {
+  const role = request.headers.get("x-user-role");
+  return role === "Admin" || role === "Recepción";
+}
+
+// DELETE /api/patients?id=PATIENT_ID
+export async function DELETE(request: Request) {
+  try {
+    if (!checkSchedulingPermission(request)) {
+      return NextResponse.json({ error: "Acceso no autorizado. Solo Administrador o Recepción pueden eliminar pacientes." }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Falta ID del paciente" }, { status: 400 });
+    }
+
+    // Cascade delete of appointments & payments will happen automatically due to DB foreign keys cascade
+    const deleted = await db.patient.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true, deleted: deleted.id });
+  } catch (error: any) {
+    console.error("Error deleting patient:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+

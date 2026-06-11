@@ -166,6 +166,33 @@ export default function Home() {
   const [userFormPassword, setUserFormPassword] = useState("");
   const [userFormRole, setUserFormRole] = useState("Doctor");
 
+  // Settings: Therapies management state
+  const [therapyModal, setTherapyModal] = useState<{ show: boolean; therapy?: any }>({ show: false });
+  const [therapyFormId, setTherapyFormId] = useState("");
+  const [therapyFormName, setTherapyFormName] = useState("");
+  const [therapyFormDescription, setTherapyFormDescription] = useState("");
+  const [therapyFormPrice, setTherapyFormPrice] = useState("");
+  const [therapyFormColor, setTherapyFormColor] = useState("#0d9488");
+
+  // Sync therapy form state
+  useEffect(() => {
+    if (therapyModal.show) {
+      if (therapyModal.therapy) {
+        setTherapyFormId(therapyModal.therapy.id);
+        setTherapyFormName(therapyModal.therapy.name);
+        setTherapyFormDescription(therapyModal.therapy.description || "");
+        setTherapyFormPrice(String(therapyModal.therapy.price));
+        setTherapyFormColor(therapyModal.therapy.color);
+      } else {
+        setTherapyFormId("");
+        setTherapyFormName("");
+        setTherapyFormDescription("");
+        setTherapyFormPrice("");
+        setTherapyFormColor("#0d9488");
+      }
+    }
+  }, [therapyModal]);
+
   // Initialize
   useEffect(() => {
     setMounted(true);
@@ -480,6 +507,116 @@ export default function Home() {
       console.error(err);
     }
   };
+
+  // Delete patient
+  const handleDeletePatient = async (id: string) => {
+    if (!confirm("¿Estás seguro de que deseas eliminar este paciente? Esto borrará permanentemente todas sus citas y pagos asociados.")) return;
+    try {
+      const res = await fetch(`/api/patients?id=${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setPatients(patients.filter(p => p.id !== id));
+        alert("Paciente eliminado con éxito.");
+      } else {
+        const err = await res.json();
+        alert(err.error || "Ocurrió un error al eliminar al paciente.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error de red.");
+    }
+  };
+
+  // Save therapy (create or update)
+  const handleSaveTherapy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!therapyFormId || !therapyFormName || !therapyFormPrice || !therapyFormColor) {
+      alert("Por favor completa los campos obligatorios");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/therapies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: therapyFormId.toUpperCase().trim().replace(/\s+/g, "_"),
+          name: therapyFormName,
+          description: therapyFormDescription,
+          price: parseFloat(therapyFormPrice),
+          color: therapyFormColor,
+        }),
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        if (therapyModal.therapy) {
+          setTherapies(therapies.map(t => t.id === saved.id ? saved : t));
+        } else {
+          setTherapies([...therapies, saved]);
+        }
+        setTherapyModal({ show: false });
+        alert("Tratamiento guardado con éxito.");
+      } else {
+        const err = await res.json();
+        alert(err.error || "Ocurrió un error al guardar el tratamiento.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error de red.");
+    }
+  };
+
+  // Delete therapy
+  const handleDeleteTherapy = async (id: string) => {
+    if (!confirm("¿Deseas eliminar este tratamiento/terapia permanentemente?")) return;
+    try {
+      const res = await fetch(`/api/therapies?id=${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setTherapies(therapies.filter(t => t.id !== id));
+        alert("Tratamiento eliminado con éxito.");
+      } else {
+        const err = await res.json();
+        alert(err.error || "Ocurrió un error al eliminar el tratamiento.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error de red.");
+    }
+  };
+
+  // Export Cash Cut to CSV
+  const exportCajaCSV = () => {
+    if (!financeSummary.dailyPayments || financeSummary.dailyPayments.length === 0) return;
+
+    let csvContent = "\uFEFF"; // UTF-8 BOM to support accents in Excel
+    csvContent += "Paciente,Terapia,Método de Pago,Hora Cita,Consultorio,Monto Pagado\n";
+
+    financeSummary.dailyPayments.forEach((p: any) => {
+      const patientName = `"${p.appointment.patient.firstName} ${p.appointment.patient.lastName}"`;
+      const therapySub = p.appointment.therapySubcategory ? ` (${p.appointment.therapySubcategory})` : "";
+      const therapyName = `"${p.appointment.therapy.name}${therapySub}"`;
+      const method = p.method;
+      const timeSlot = p.appointment.timeSlot;
+      const consultorio = p.appointment.consultorio;
+      const amount = p.amount;
+
+      csvContent += `${patientName},${therapyName},${method},${timeSlot},${consultorio},${amount}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `corte_caja_${selectedDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
 
   // Google Calendar Auth URL
   const connectGoogleCalendar = async () => {
@@ -1370,6 +1507,15 @@ export default function Home() {
                                       <Edit size={12} />
                                       <span>Editar</span>
                                     </button>
+                                    {currentUser.role !== "Doctor" && (
+                                      <button
+                                        onClick={() => handleDeletePatient(p.id)}
+                                        className="text-rose-400 hover:text-rose-300 font-semibold text-xs bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg border border-rose-500/20 transition flex items-center gap-1.5"
+                                      >
+                                        <Trash2 size={12} />
+                                        <span>Eliminar</span>
+                                      </button>
+                                    )}
                                   </td>
                                 </tr>
                               ))
@@ -1418,7 +1564,18 @@ export default function Home() {
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Payments of the day */}
                         <div className="glass p-6 flex flex-col gap-4">
-                          <h3 className="font-bold text-sm text-slate-300 border-b border-white/5 pb-3">Cortes de Caja de Hoy</h3>
+                          <div className="flex items-center justify-between border-b border-white/5 pb-3">
+                            <h3 className="font-bold text-sm text-slate-300">Cortes de Caja de Hoy</h3>
+                            {financeSummary.dailyPayments && financeSummary.dailyPayments.length > 0 && (
+                              <button
+                                onClick={exportCajaCSV}
+                                className="px-2.5 py-1.5 bg-teal-600/20 hover:bg-teal-600/30 text-teal-400 font-semibold text-[10px] rounded-lg border border-teal-500/20 transition flex items-center gap-1.5"
+                              >
+                                <Download size={12} />
+                                <span>Exportar CSV</span>
+                              </button>
+                            )}
+                          </div>
                           <div className="overflow-y-auto max-h-[40vh] divide-y divide-white/5">
                             {financeSummary.dailyPayments && financeSummary.dailyPayments.length > 0 ? (
                               financeSummary.dailyPayments.map((p: any) => (
@@ -1461,12 +1618,25 @@ export default function Home() {
                   {/* TAB 5: TERAPIAS */}
                   {activeTab === "therapies" && (
                     <div className="flex flex-col gap-6 text-left">
+                      {/* Action Bar */}
+                      {currentUser.role === "Admin" && (
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => setTherapyModal({ show: true })}
+                            className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white font-semibold text-sm rounded-xl flex items-center gap-2 transition"
+                          >
+                            <Plus size={16} />
+                            <span>Nuevo Tratamiento</span>
+                          </button>
+                        </div>
+                      )}
+
                       {/* Therapies Grid */}
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {therapies.map((t) => (
                           <div
                             key={t.id}
-                            className="glass p-6 bg-[#121826]/30 border-white/10 hover:border-white/20 transition flex flex-col justify-between min-h-[160px]"
+                            className="glass p-6 bg-[#121826]/30 border-white/10 hover:border-white/20 transition flex flex-col justify-between min-h-[180px]"
                             style={{ borderTop: `4px solid ${t.color}` }}
                           >
                             <div>
@@ -1484,7 +1654,27 @@ export default function Home() {
                               </p>
                             </div>
 
-                            <div className="flex justify-end mt-4 pt-3 border-t border-white/5">
+                            <div className="flex justify-between items-center mt-4 pt-3 border-t border-white/5">
+                              {currentUser.role === "Admin" ? (
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setTherapyModal({ show: true, therapy: t })}
+                                    className="text-slate-300 hover:text-white font-semibold text-[10px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded-lg border border-white/5 transition flex items-center gap-1"
+                                  >
+                                    <Edit size={10} />
+                                    <span>Editar</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteTherapy(t.id)}
+                                    className="text-rose-400 hover:text-rose-300 font-semibold text-[10px] bg-rose-500/10 hover:bg-rose-500/20 px-2 py-1 rounded-lg border border-rose-500/20 transition flex items-center gap-1"
+                                  >
+                                    <Trash2 size={10} />
+                                    <span>Eliminar</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <div></div>
+                              )}
                               <span
                                 className="w-3 h-3 rounded-full"
                                 style={{ backgroundColor: t.color }}
@@ -2010,6 +2200,122 @@ export default function Home() {
           </form>
         </div>
       )}
+
+      {/* 6. THERAPY CREATION / EDITING MODAL (ADMIN ONLY) */}
+      {therapyModal.show && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveTherapy}
+            className="glass p-6 w-full max-w-sm bg-[#121826]/95 flex flex-col gap-4 text-left border border-white/10 glow-teal animate-fadeIn"
+          >
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <h3 className="font-bold text-sm text-white">
+                {therapyModal.therapy ? "Editar Tratamiento / Terapia" : "Registrar Nuevo Tratamiento"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setTherapyModal({ show: false })}
+                className="p-1 text-slate-400 hover:text-white rounded-lg transition"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-slate-400 font-medium">Código Identificador (ID) *</label>
+              <input
+                type="text"
+                required
+                disabled={!!therapyModal.therapy}
+                value={therapyFormId}
+                onChange={(e) => setTherapyFormId(e.target.value)}
+                placeholder="Ej. CONSULTA, RESET, TD_AVANZADA"
+                className="w-full text-xs uppercase"
+              />
+              {!therapyModal.therapy && (
+                <p className="text-[9px] text-slate-500">
+                  Un identificador único en mayúsculas y sin espacios (se usarán guiones bajos en su lugar).
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-slate-400 font-medium">Nombre del Tratamiento *</label>
+              <input
+                type="text"
+                required
+                value={therapyFormName}
+                onChange={(e) => setTherapyFormName(e.target.value)}
+                placeholder="Ej. Primera Vez con RX"
+                className="w-full text-xs"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-slate-400 font-medium">Descripción</label>
+              <textarea
+                rows={3}
+                value={therapyFormDescription}
+                onChange={(e) => setTherapyFormDescription(e.target.value)}
+                placeholder="Escribe brevemente de qué trata este servicio..."
+                className="w-full text-xs resize-none"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-slate-400 font-medium">Precio Estándar *</label>
+                <input
+                  type="number"
+                  step="any"
+                  required
+                  value={therapyFormPrice}
+                  onChange={(e) => setTherapyFormPrice(e.target.value)}
+                  placeholder="800.00"
+                  className="w-full text-xs"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-slate-400 font-medium">Color Distintivo *</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="color"
+                    required
+                    value={therapyFormColor}
+                    onChange={(e) => setTherapyFormColor(e.target.value)}
+                    className="w-10 h-8 p-0 border-0 bg-transparent cursor-pointer rounded-lg overflow-hidden shrink-0"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={therapyFormColor}
+                    onChange={(e) => setTherapyFormColor(e.target.value)}
+                    placeholder="#0d9488"
+                    className="w-full text-xs uppercase"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 mt-4 border-t border-white/5 pt-4">
+              <button
+                type="button"
+                onClick={() => setTherapyModal({ show: false })}
+                className="px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold rounded-lg transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold rounded-lg transition"
+              >
+                Guardar Tratamiento
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
@@ -2371,6 +2677,14 @@ function AppointmentForm({
     e.preventDefault();
     if (!selectedPatientId || !selectedTherapyId || !date || !timeSlot || !consultorio) {
       alert("Por favor rellene los campos obligatorios");
+      return;
+    }
+
+    // Validate Sunday client-side
+    const [year, month, day] = date.split("-").map(Number);
+    const appointmentDate = new Date(year, month - 1, day);
+    if (appointmentDate.getDay() === 0) {
+      alert("La clínica está cerrada los domingos. Por favor selecciona otro día.");
       return;
     }
 
@@ -2810,8 +3124,37 @@ function ReportesDashboard({ appointments, therapies, date }: { appointments: an
     };
   }).sort((a, b) => b.count - a.count);
 
+  // 2. Monthly Stats
+  const [selectedMonth, setSelectedMonth] = useState(date.substring(0, 7)); // e.g. "2026-06"
+  const [monthlyData, setMonthlyData] = useState<any>(null);
+  const [loadingMonthly, setLoadingMonthly] = useState(false);
+
+  useEffect(() => {
+    const fetchMonthly = async () => {
+      if (!selectedMonth) return;
+      setLoadingMonthly(true);
+      try {
+        const res = await fetch(`/api/payments?mode=monthly&month=${selectedMonth}`);
+        if (res.ok) {
+          const data = await res.json();
+          setMonthlyData(data);
+        }
+      } catch (err) {
+        console.error("Error fetching monthly report:", err);
+      } finally {
+        setLoadingMonthly(false);
+      }
+    };
+    fetchMonthly();
+  }, [selectedMonth]);
+
   return (
     <div className="flex flex-col gap-6 text-left">
+      <div>
+        <h3 className="font-extrabold text-lg text-white">Resumen del Día Seleccionado</h3>
+        <p className="text-[10px] text-slate-500 font-medium">Estadísticas operativas para el día {date.split("-").reverse().join("/")}</p>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="glass p-6 bg-[#121826]/30">
           <p className="text-xs text-slate-400 font-medium">Pacientes Totales Citados Hoy</p>
@@ -2872,6 +3215,109 @@ function ReportesDashboard({ appointments, therapies, date }: { appointments: an
             ))}
           </div>
         </div>
+      </div>
+
+      {/* SECCIÓN MENSUAL */}
+      <div className="border-t border-white/5 pt-6 mt-4 flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 select-none">
+          <div>
+            <h3 className="font-extrabold text-lg text-white">Análisis Financiero Mensual</h3>
+            <p className="text-[10px] text-slate-500 font-medium">Estadísticas e ingresos acumulados en el mes seleccionado</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-400 font-medium">Seleccionar Mes:</label>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-[#121826] text-xs py-1.5 px-3 focus:ring-0 outline-none max-w-[160px] border border-white/5 text-slate-300"
+            />
+          </div>
+        </div>
+
+        {loadingMonthly ? (
+          <div className="py-8 text-center text-xs text-slate-500">
+            Cargando estadísticas mensuales...
+          </div>
+        ) : monthlyData ? (
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="glass p-6 bg-[#121826]/30">
+                <p className="text-xs text-slate-400 font-medium">Ingresos Totales del Mes</p>
+                <h3 className="text-3xl font-extrabold text-emerald-400 mt-2">${monthlyData.total}</h3>
+                <p className="text-[10px] text-slate-500 mt-1">Suma de pagos registrados en {selectedMonth}</p>
+              </div>
+              <div className="glass p-6 bg-[#121826]/30">
+                <p className="text-xs text-slate-400 font-medium">Pagos Registrados</p>
+                <h3 className="text-3xl font-extrabold text-indigo-400 mt-2">
+                  {monthlyData.count} transacciones
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-1">Total de abonos a citas en el mes</p>
+              </div>
+              <div className="glass p-6 bg-[#121826]/30">
+                <p className="text-xs text-slate-400 font-medium">Ingreso Promedio por Transacción</p>
+                <h3 className="text-3xl font-extrabold text-pink-400 mt-2">
+                  ${monthlyData.count > 0 ? Math.round(monthlyData.total / monthlyData.count) : 0}
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-1">Monto de cobro promedio</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Method breakdown */}
+              <div className="glass p-6 bg-[#121826]/30 flex flex-col gap-4">
+                <h4 className="font-bold text-sm text-slate-300 border-b border-white/5 pb-2">Ingresos por Método de Pago</h4>
+                <div className="flex flex-col gap-4 mt-2">
+                  {Object.entries(monthlyData.byMethod || {}).map(([method, amount]: any) => {
+                    const pct = monthlyData.total > 0 ? Math.round((amount / monthlyData.total) * 100) : 0;
+                    return (
+                      <div key={method} className="flex flex-col gap-1 text-xs">
+                        <div className="flex justify-between items-center text-slate-200">
+                          <span className="font-bold">{method}</span>
+                          <span className="font-semibold">${amount} ({pct}%)</span>
+                        </div>
+                        <div className="w-full bg-slate-900/80 rounded-full h-2 border border-white/5 overflow-hidden">
+                          <div
+                            className="bg-indigo-500 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Therapy breakdown */}
+              <div className="glass p-6 bg-[#121826]/30 flex flex-col gap-4">
+                <h4 className="font-bold text-sm text-slate-300 border-b border-white/5 pb-2">Distribución Mensual por Tratamientos</h4>
+                <div className="overflow-y-auto max-h-[35vh] flex flex-col gap-3 mt-1">
+                  {Object.entries(monthlyData.byTherapy || {}).length > 0 ? (
+                    Object.entries(monthlyData.byTherapy || {}).map(([tName, amount]: any) => {
+                      const therapy = therapies.find(t => t.name === tName);
+                      const tColor = therapy ? therapy.color : "#64748b";
+                      return (
+                        <div key={tName} className="flex items-center justify-between text-xs py-1 border-b border-white/5 last:border-0 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: tColor }}></span>
+                            <span className="font-bold text-white">{tName}</span>
+                          </div>
+                          <span className="font-extrabold text-sm text-slate-300">${amount}</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-slate-500 text-xs py-8 text-center">No hay ingresos registrados en este mes.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-xs text-slate-500">
+            No hay estadísticas disponibles para el mes seleccionado.
+          </div>
+        )}
       </div>
     </div>
   );

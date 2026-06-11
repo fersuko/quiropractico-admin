@@ -70,6 +70,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // Validate Sunday
+    const [year, month, day] = date.split("-").map(Number);
+    const appointmentDate = new Date(year, month - 1, day);
+    if (appointmentDate.getDay() === 0) {
+      return NextResponse.json({ error: "La clínica está cerrada los domingos." }, { status: 400 });
+    }
+
+
     // 1. Check double booking of the office (consultorio) in the slot
     const existing = await db.appointment.findUnique({
       where: {
@@ -166,6 +174,15 @@ export async function PUT(request: Request) {
       }
     } else if (requesterRole !== "Admin" && requesterRole !== "Recepción") {
       return NextResponse.json({ error: "Acceso no autorizado" }, { status: 403 });
+    }
+
+    // Validate Sunday
+    if (date) {
+      const [year, month, day] = date.split("-").map(Number);
+      const appointmentDate = new Date(year, month - 1, day);
+      if (appointmentDate.getDay() === 0) {
+        return NextResponse.json({ error: "La clínica está cerrada los domingos." }, { status: 400 });
+      }
     }
 
     // If rescheduling, check double booking

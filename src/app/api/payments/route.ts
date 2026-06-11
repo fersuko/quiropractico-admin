@@ -118,6 +118,64 @@ export async function GET(request: Request) {
       return NextResponse.json(history);
     }
 
+    if (mode === "monthly") {
+      const monthStr = searchParams.get("month"); // e.g. "2026-06"
+      if (!monthStr) {
+        return NextResponse.json({ error: "Falta el parámetro del mes" }, { status: 400 });
+      }
+
+      const [year, month] = monthStr.split("-").map(Number);
+      const startOfMonth = new Date(year, month - 1, 1, 0, 0, 0);
+      const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+
+      const monthlyPayments = await db.payment.findMany({
+        where: {
+          createdAt: {
+            gte: startOfMonth,
+            lte: endOfMonth,
+          },
+        },
+        include: {
+          appointment: {
+            include: {
+              patient: true,
+              therapy: true,
+            },
+          },
+        },
+      });
+
+      const total = monthlyPayments.reduce((sum, p) => sum + p.amount, 0);
+      const count = monthlyPayments.length;
+
+      const byMethod = monthlyPayments.reduce((acc: any, p) => {
+        acc[p.method] = (acc[p.method] || 0) + p.amount;
+        return acc;
+      }, { Efectivo: 0, Tarjeta: 0, Transferencia: 0 });
+
+      const byTherapy = monthlyPayments.reduce((acc: any, p) => {
+        const tName = p.appointment?.therapy?.name || "Desconocida";
+        acc[tName] = (acc[tName] || 0) + p.amount;
+        return acc;
+      }, {});
+
+      return NextResponse.json({
+        month: monthStr,
+        total,
+        count,
+        byMethod,
+        byTherapy,
+        payments: monthlyPayments.map(p => ({
+          id: p.id,
+          amount: p.amount,
+          method: p.method,
+          createdAt: p.createdAt,
+          patientName: p.appointment ? `${p.appointment.patient.firstName} ${p.appointment.patient.lastName}` : "Desconocido",
+          therapyName: p.appointment ? p.appointment.therapy.name : "Desconocida",
+        }))
+      });
+    }
+
     return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
   } catch (error: any) {
     console.error("Error in /api/payments:", error);
